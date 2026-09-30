@@ -29,9 +29,31 @@ python3 scripts/build_words.py           # regenerate web/words.js from data/
 `.github/workflows/pages.yml` deploys `web/` to GitHub Pages on every push to `main`
 (enable it under Settings -> Pages -> Source: GitHub Actions).
 
-## Results
+## Results (all 2,315 answers)
 
-All 2,315 answers, easy mode: **3.465 average guesses**, 0 failures (max 6).
+| Solver | Average guesses | Worst |
+|---|---|---|
+| Heuristic (frequency shortlist + expected-guesses ranking) | 3.465 | 6 |
+| **Precomputed tree (`web/tree.json`), opener SALET** | **3.4212** | **5** |
+| Hard mode tree (`web/tree-hard.json`) | 3.5175 | 7 |
+
+The published optimum is about 3.420, so the tree is within roughly 0.001 of optimal.
+
+## How the optimal play works
+
+`web/search.js` minimizes the *total* number of guesses over a pool of answers. For each pool it ranks
+every legal guess by how evenly it splits the pool (frequency-style shortlist), then recursively solves
+each resulting feedback cell, pruning with a lower bound (`2m-1` guesses for a cell of m words) and
+memoizing pools. A precomputed feedback table makes scoring a lookup.
+
+- `scripts/build_tree.js` runs it offline from the full answer list, tries several openers, verifies the
+  tree by replaying every answer, and writes `web/tree.json` / `web/tree-hard.json` (about 34 KB each).
+  Regenerate with `WARBLER_WIDTH=3 node scripts/build_tree.js [--hard]` (about 90 s).
+- The web app follows the tree while you play its suggestions. If you deviate and 90 or fewer answers
+  remain, it solves that position exactly in the browser; otherwise it uses the heuristic solver.
+- `node tests/test_tree.js` replays every answer through both trees.
+
+The Python package is the heuristic reference implementation; the exact search lives in JavaScript.
 
 ## Word lists
 

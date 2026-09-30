@@ -1,5 +1,5 @@
-const CACHE = "warbler-v2";
-const FILES = ["./", "index.html", "solver.js", "worker.js", "words.js", "manifest.webmanifest", "icon.svg"];
+const CACHE = "warbler-v3";
+const FILES = ["./", "index.html", "solver.js", "worker.js", "search.js", "tree.json", "tree-hard.json", "words.js", "manifest.webmanifest", "icon.svg"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) =>
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));

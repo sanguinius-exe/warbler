@@ -44,6 +44,7 @@ ol.sugg button:hover,ol.sugg button:focus-visible{border-color:var(--accent);out
 ol.sugg li:first-child button{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .w{font-weight:700;letter-spacing:.15em;text-transform:uppercase}
 .meta{color:var(--muted);font-size:13px}
+.badge.alt{background:var(--gray)}
 .badge{font-size:11px;background:var(--accent);color:#fff;border-radius:99px;padding:1px 7px;margin-left:8px;letter-spacing:0;vertical-align:1px}
 .cands{display:flex;flex-wrap:wrap;gap:6px}
 .cands span{font-family:ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:14px}
@@ -82,7 +83,7 @@ footer{color:var(--muted);font-size:13px;text-align:center}
 
   <details>
     <summary>How it works</summary>
-    <p>Warbler filters the answer list by every color you report, shortlists guesses by letter and position frequency (favoring letters that split the pool, avoiding repeats early), then ranks the shortlist by expected guesses remaining (using how evenly each guess splits the pool), so the lowest expected number of guesses to finish wins, which favors guesses that could be the answer when it is close. Everything runs in your browser.</p>
+    <p>Warbler filters the answer list by every color you report, shortlists guesses by letter and position frequency (favoring letters that split the pool, avoiding repeats early), then ranks the shortlist by expected guesses remaining (using how evenly each guess splits the pool), so the lowest expected number of guesses to finish wins, which favors guesses that could be the answer when it is close. The opening moves come from an exhaustive search over all 2,315 answers (3.42 guesses on average, never more than 5), and small endgames are solved exactly. Everything runs in your browser.</p>
   </details>
   <footer><p>No data leaves your device.</p></footer>
 </main>
@@ -149,7 +150,8 @@ footer{color:var(--muted);font-size:13px;text-align:center}
   }
 
   worker.onmessage = (e) => {
-    const { id, poolSize, pool, ranked } = e.data;
+    if (e.data.error) { console.error(e.data.error); $("pending").textContent = ""; say("Something went wrong computing suggestions.", true); return; }
+    const { id, poolSize, pool, ranked, source, optimal } = e.data;
     if (id !== reqId) return;
     $("pending").textContent = "";
     const list = $("sugg");
@@ -166,11 +168,11 @@ footer{color:var(--muted);font-size:13px;text-align:center}
       const li = document.createElement("li");
       const b = document.createElement("button");
       const left = document.createElement("span");
-      left.innerHTML = `<span class="w"></span>${r.candidate ? '<span class="badge">possible</span>' : ""}`;
+      left.innerHTML = `<span class="w"></span>${r.optimal ? '<span class="badge">optimal</span>' : ""}${r.candidate ? '<span class="badge alt">possible</span>' : ""}`;
       left.firstChild.textContent = r.word;
       const right = document.createElement("span");
       right.className = "meta";
-      right.textContent = poolSize === 1 ? "the answer" : poolSize === 2 ? "coin flip" : "~" + r.cost.toFixed(2) + " guesses";
+      right.textContent = poolSize === 1 ? "the answer" : poolSize === 2 ? "coin flip" : (r.optimal || r.exact ? r.cost.toFixed(2) : "≈" + r.cost.toFixed(2)) + " guesses";
       b.append(left, right);
       b.onclick = () => { if (!pending) propose(r.word); };
       li.appendChild(b);
@@ -178,10 +180,16 @@ footer{color:var(--muted);font-size:13px;text-align:center}
     });
     const why = $("why");
     why.textContent = "";
-    const best = ranked[0], alt = ranked.find((r) => r.candidate);
-    if (best && !best.candidate && alt && poolSize > 2) {
+    const best = ranked[0], alt = ranked.find((r) => r.candidate && !r.optimal);
+    if (optimal && poolSize > 2) {
+      const W = optimal.word.toUpperCase();
+      why.textContent = `${W} is the best move: ${optimal.expected.toFixed(2)} guesses on average from here, never more than ${optimal.worst}. ` +
+        (best.candidate ? "It could also be the answer. " : `It can't be the answer itself, but it splits the ${poolSize} remaining words best. `) +
+        (source === "tree" ? "(Precomputed optimal strategy.)" : "(Solved exactly for this position.)") +
+        (!best.candidate && alt ? ` To go for the win instead, tap ${alt.word.toUpperCase()}.` : "");
+    } else if (best && !best.candidate && alt && poolSize > 2) {
       why.textContent = `${best.word.toUpperCase()} can't be the answer, but it separates the ${poolSize} remaining words best ` +
-        `(~${best.cost.toFixed(2)} guesses to finish vs ~${alt.cost.toFixed(2)} for ${alt.word.toUpperCase()}, the best possible answer). ` +
+        `(≈${best.cost.toFixed(2)} guesses to finish vs ≈${alt.cost.toFixed(2)} for ${alt.word.toUpperCase()}, the best possible answer). ` +
         `Want to go for the win instead? Tap ${alt.word.toUpperCase()}.`;
     }
     $("candTitle").textContent = poolSize + " possible answer" + (poolSize === 1 ? "" : "s");
