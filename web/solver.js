@@ -3,6 +3,9 @@
   const ALL_GREEN = 242;
   const SHORTLIST = 250;
   const WIN_WEIGHT = 1.0;
+  // Rough guesses still needed to finish from a cell of m equally likely words.
+  const LOGB = Math.log(6);
+  const need = (m) => (m <= 1 ? 1 : m === 2 ? 1.5 : 1 + Math.log(m) / LOGB);
   const scratch = new Int8Array(26);
   const res = [0, 0, 0, 0, 0];
 
@@ -23,7 +26,8 @@
   }
 
   class Solver {
-    constructor(answers, guesses, hard = false) {
+    constructor(answers, guesses, hard = false, scoring = "cost") {
+      this.scoring = scoring;
       this.answers = answers;
       this.guesses = guesses || answers;
       this.hard = hard;
@@ -64,13 +68,21 @@
       return score;
     }
 
-    entropy(guess, pool) {
+    // Returns {bits, cost}: entropy of the feedback split, and expected total guesses
+    // (this guess + guesses needed to finish from whichever cell the feedback lands in).
+    evaluate(guess, pool) {
       const counts = new Int32Array(243);
       for (const w of pool) counts[feedback(guess, w)]++;
       const n = pool.length;
-      let h = 0;
-      for (let k = 0; k < 243; k++) if (counts[k]) { const p = counts[k] / n; h -= p * Math.log2(p); }
-      return h;
+      let bits = 0, cost = 1;
+      for (let k = 0; k < 243; k++) {
+        const c = counts[k];
+        if (!c) continue;
+        const p = c / n;
+        bits -= p * Math.log2(p);
+        if (k !== ALL_GREEN) cost += p * need(c);
+      }
+      return { bits, cost };
     }
 
     // Returns { pool, ranked: [{word, bits, candidate}] } best-first.
@@ -87,7 +99,7 @@
 
     choose(pool, top) {
       const n = pool.length;
-      if (n <= 2) return pool.map((w) => ({ word: w, bits: n === 1 ? 0 : 1, candidate: true }));
+      if (n <= 2) return pool.map((w) => ({ word: w, bits: n === 1 ? 0 : 1, cost: n === 1 ? 1 : 1.5, candidate: true }));
       const inPool = new Set(pool);
       const space = this.hard ? pool : this.guesses;
       const t = this.frequencyTables(pool);
@@ -99,12 +111,18 @@
       if (n <= 12 && !this.hard) for (const w of space) short.add(w);
       const rows = [];
       for (const w of [...short].sort()) {
-        const bits = this.entropy(w, pool);
+        const { bits, cost } = this.evaluate(w, pool);
         const candidate = inPool.has(w);
-        rows.push({ word: w, bits, candidate, value: bits + (candidate ? WIN_WEIGHT / n : 0) });
+        const value = this.scoring === "cost" ? -cost : bits + (candidate ? WIN_WEIGHT / n : 0);
+        rows.push({ word: w, bits, cost, candidate, value });
       }
       rows.sort((a, b) => b.value - a.value || (a.word < b.word ? -1 : 1));
-      return rows.slice(0, top);
+      const out = rows.slice(0, top);
+      if (top > 1 && !out.some((r) => r.candidate)) {
+        const best = rows.find((r) => r.candidate);
+        if (best) out[out.length - 1] = best; // always offer a guess that could win outright
+      }
+      return out;
     }
 
     play(answer, maxTurns = 10) {

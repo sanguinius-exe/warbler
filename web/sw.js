@@ -1,4 +1,4 @@
-const CACHE = "warbler-v1";
+const CACHE = "warbler-v2";
 const FILES = ["./", "index.html", "solver.js", "worker.js", "words.js", "manifest.webmanifest", "icon.svg"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) =>

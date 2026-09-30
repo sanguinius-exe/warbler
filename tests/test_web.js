@@ -11,7 +11,7 @@ eq(fmt(feedback("geese", "eerie")), "bgybg");
 eq(fmt(feedback("allay", "label")), "yyybb");
 const limit = +process.argv[2] || 100;
 const step = Math.max(1, Math.floor(answers.length / limit));
-const solver = new Solver(answers, guesses);
+const solver = new Solver(answers, guesses, false, process.argv[3] || "cost");
 const tally = {}; let total = 0, n = 0; const t0 = Date.now();
 for (let i = 0; i < answers.length; i += step) {
   const p = solver.play(answers[i]); const k = p[p.length - 1] === answers[i] ? p.length : 99;

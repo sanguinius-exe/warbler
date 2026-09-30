@@ -6,8 +6,9 @@ Each turn:
  3. Shortlist guesses with *frequency analysis*: letters are weighted by how evenly they
     split the pool (a letter in 50% of words is worth more than one in 95%), plus
     positional frequency for green hits, plus a penalty for repeated letters early on.
- 4. Re-rank the shortlist by *expected information* (entropy of the feedback
-    distribution across the pool), with a bonus for guesses that could themselves win.
+ 4. Re-rank the shortlist by *expected total guesses*: for each feedback cell the guess
+    would produce, estimate the guesses needed to finish it (a cell holding the guess
+    itself costs nothing more, so guesses that could win are favored when close).
     This catches "trap" pools like _IGHT / _ATCH where frequency alone fails.
  5. Hard mode restricts guesses to words still consistent with all hints.
 """
@@ -19,7 +20,13 @@ from collections import Counter
 from .feedback import ALL_GREEN, feedback
 
 SHORTLIST = 250
-WIN_WEIGHT = 1.0  # bits credited to a guess that might be the answer, scaled by 1/|pool|
+WIN_WEIGHT = 1.0  # (unused by the default cost scoring)
+_LOGB = math.log(6)
+
+
+def need(m: int) -> float:
+    """Rough guesses still needed to finish from a cell of m equally likely words."""
+    return 1.0 if m <= 1 else 1.5 if m == 2 else 1 + math.log(m) / _LOGB  # bits credited to a guess that might be the answer, scaled by 1/|pool|
 
 
 class Solver:
@@ -60,10 +67,13 @@ class Solver:
 
     # -- step 4: entropy ------------------------------------------------------------------
     @staticmethod
-    def _entropy(guess: str, pool: list[str]) -> float:
+    def _evaluate(guess: str, pool: list[str]) -> tuple[float, float]:
+        """(entropy in bits, expected total guesses) for playing `guess` against `pool`."""
         counts = Counter(feedback(guess, w) for w in pool)
         n = len(pool)
-        return -sum(k / n * math.log2(k / n) for k in counts.values())
+        bits = -sum(k / n * math.log2(k / n) for k in counts.values())
+        cost = 1 + sum(k / n * need(k) for code, k in counts.items() if code != ALL_GREEN)
+        return bits, cost
 
     # -- choose ---------------------------------------------------------------------------
     def suggest(self, history: list[tuple[str, int]]) -> str:
@@ -92,7 +102,7 @@ class Solver:
             shortlist.update(space)
 
         def value(w: str) -> float:
-            return self._entropy(w, pool) + (WIN_WEIGHT / n if w in in_pool else 0.0)
+            return -self._evaluate(w, pool)[1]  # minimize expected guesses
 
         return max(sorted(shortlist), key=value)  # sorted -> deterministic ties
 
