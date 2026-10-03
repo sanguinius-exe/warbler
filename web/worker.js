@@ -2,13 +2,18 @@ importScripts("words.js", "solver.js", "search.js");
 const { Solver, Search, feedback } = Warbler;
 const { answers, allowed } = WARBLER_WORDS;
 const guesses = [...answers, ...allowed].sort();
-const answerSet = new Set(answers);
-const solvers = { easy: new Solver(answers, guesses, false), hard: new Solver(answers, guesses, true) };
+// "classic" = the 2,315 original answers; "all" = every legal word could be the answer.
+const pools = { classic: answers, all: guesses };
+const solvers = {};
+const getSolver = (mode, hard) =>
+  (solvers[mode + hard] ||= new Solver(pools[mode], guesses, hard));
 const EXACT_MAX = 90; // live exact search when off the precomputed tree and this few words remain
 
 const trees = {};
-const loadTree = (hard) =>
-  (trees[hard] ||= fetch(hard ? "tree-hard.json" : "tree.json").then((r) => (r.ok ? r.json() : null)).catch(() => null));
+const loadTree = (mode, hard) => {
+  const file = `tree${mode === "all" ? "-all" : ""}${hard ? "-hard" : ""}.json`;
+  return (trees[file] ||= fetch(file).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+};
 
 // Follow the player's history down the tree. Returns the subtree to play next, or null if off-tree.
 function walk(tree, history) {
@@ -58,16 +63,17 @@ onmessage = async (e) => {
   }
 };
 
-async function handle({ id, history, hard }) {
-  const solver = solvers[hard ? "hard" : "easy"];
+async function handle({ id, history, hard, mode = "classic" }) {
+  hard = !!hard;
+  const solver = getSolver(mode, hard);
   const { pool, ranked } = solver.suggest(history, 5);
   let source = null, optimal = null;
 
   if (pool.length > 2) {
-    const tree = await loadTree(!!hard);
+    const tree = await loadTree(mode, hard);
     let node = tree ? walk(tree.tree, history) : null;
     const small = pool.length <= EXACT_MAX;
-    const ex = small ? exact(pool, !!hard) : null;
+    const ex = small ? exact(pool, hard) : null;
     if (node) source = "tree";
     else if (ex) { node = ex.node; source = "search"; }
     if (node) {

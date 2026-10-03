@@ -7,11 +7,16 @@ const answers = [...new Set(read("answers.txt"))].sort();
 const guesses = [...new Set([...answers, ...read("allowed.txt")])].sort();
 const ok = (c, m) => { if (!c) { console.error("FAIL:", m); process.exit(1); } };
 
-for (const [file, maxAvg, maxGuesses, hard] of [["tree.json", 3.43, 5, false], ["tree-hard.json", 3.53, 7, true]]) {
+// [file, max average, max guesses, hard mode, answer set]; expanded trees are checked if present.
+const cases = [["tree.json", 3.43, 5, false, answers], ["tree-hard.json", 3.53, 7, true, answers]];
+for (const [f, hard] of [["tree-all.json", false], ["tree-all-hard.json", true]]) {
+  if (fs.existsSync(__dirname + "/../web/" + f)) cases.push([f, hard ? 4.42 : 4.07, hard ? 15 : 7, hard, guesses]);
+}
+for (const [file, maxAvg, maxGuesses, hard, targets] of cases) {
   const { tree } = JSON.parse(fs.readFileSync(__dirname + "/../web/" + file));
   let sum = 0, worst = 0;
-  for (const a of answers) {
-    let node = tree, n = 0, pool = answers;
+  for (const a of targets) {
+    let node = tree, n = 0, pool = targets;
     for (;;) {
       const g = typeof node === "string" ? node : node[0];
       ok(guesses.includes(g), `${file}: ${g} is not a legal guess`);
@@ -21,11 +26,11 @@ for (const [file, maxAvg, maxGuesses, hard] of [["tree.json", 3.43, 5, false], [
       if (code === 242) break;
       pool = pool.filter((w) => feedback(g, w) === code);
       node = node[1][code];
-      ok(node !== undefined && n < 10, `${file}: dead end for ${a}`);
+      ok(node !== undefined && n < 20, `${file}: dead end for ${a}`);
     }
     sum += n; worst = Math.max(worst, n);
   }
-  const avg = sum / answers.length;
+  const avg = sum / targets.length;
   console.log(file, "avg", avg.toFixed(4), "worst", worst);
   ok(avg <= maxAvg && worst <= maxGuesses, `${file}: avg ${avg} / worst ${worst} out of bounds`);
 }

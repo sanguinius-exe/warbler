@@ -37,7 +37,18 @@ python3 scripts/build_words.py           # regenerate web/words.js from data/
 | **Precomputed tree (`web/tree.json`), opener SALET** | **3.4212** | **5** |
 | Hard mode tree (`web/tree-hard.json`) | 3.5175 | 7 |
 
-The published optimum is about 3.420, so the tree is within roughly 0.001 of optimal.
+### Expanded list: any legal word may be the answer (12,972 words)
+
+| Solver | Average guesses | Worst |
+|---|---|---|
+| Tree (`web/tree-all.json`), opener TARES | 4.0603 | 7 |
+| Hard mode tree (`web/tree-all-hard.json`), opener SALET | 4.4135 | 15 |
+
+Every word is treated as equally likely, so these averages are higher than the classic list's. Hard mode
+has a long tail because a pool like `_ILLS` can only be walked one word at a time. Pick the list in the
+app's dropdown, or use `--expanded` on the CLI.
+
+The published optimum for the classic list is about 3.420, so the tree is within roughly 0.001 of optimal.
 
 ## How the optimal play works
 
@@ -48,7 +59,9 @@ memoizing pools. A precomputed feedback table makes scoring a lookup.
 
 - `scripts/build_tree.js` runs it offline from the full answer list, tries several openers, verifies the
   tree by replaying every answer, and writes `web/tree.json` / `web/tree-hard.json` (about 34 KB each).
-  Regenerate with `WARBLER_WIDTH=3 node scripts/build_tree.js [--hard]` (about 90 s).
+  Regenerate with `WARBLER_WIDTH=3 node scripts/build_tree.js [--hard]` (about 90 s). Add `--expanded`
+  for the 12,972-word trees; that needs a 168 MB feedback table and takes about 6 minutes per
+  opener normally, or 10+ minutes per opener in hard mode (`node --max-old-space-size=8000`).
 - The web app follows the tree while you play its suggestions. If you deviate and 90 or fewer answers
   remain, it solves that position exactly in the browser; otherwise it uses the heuristic solver.
 - `node tests/test_tree.js` replays every answer through both trees.

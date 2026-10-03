@@ -18,6 +18,8 @@ main{max-width:460px;margin:0 auto;padding:20px 0 40px}
 header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
 h1{font-size:28px;margin:0;letter-spacing:.04em}
 .sub{color:var(--muted);font-size:14px;margin:0 0 18px}
+.opts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+select{font:inherit;font-size:13px;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
 label.hard{font-size:14px;color:var(--muted);display:flex;gap:6px;align-items:center}
 #board{display:grid;gap:6px;justify-content:center;margin-bottom:12px}
 .row{display:grid;grid-template-columns:repeat(5,56px);gap:6px}
@@ -58,7 +60,13 @@ footer{color:var(--muted);font-size:13px;text-align:center}
 <main>
   <header>
     <h1>WARBLER</h1>
-    <label class="hard"><input type="checkbox" id="hard"> Hard mode</label>
+    <span class="opts">
+      <select id="mode" aria-label="Possible answers">
+        <option value="classic">Classic answers (2,315)</option>
+        <option value="all">Any valid word (12,972)</option>
+      </select>
+      <label class="hard"><input type="checkbox" id="hard"> Hard mode</label>
+    </span>
   </header>
   <p class="sub">Type the word you played, tap the tiles to match the colors, press Enter.</p>
 
@@ -83,7 +91,7 @@ footer{color:var(--muted);font-size:13px;text-align:center}
 
   <details>
     <summary>How it works</summary>
-    <p>Warbler filters the answer list by every color you report, shortlists guesses by letter and position frequency (favoring letters that split the pool, avoiding repeats early), then ranks the shortlist by expected guesses remaining (using how evenly each guess splits the pool), so the lowest expected number of guesses to finish wins, which favors guesses that could be the answer when it is close. The opening moves come from an exhaustive search over all 2,315 answers (3.42 guesses on average, never more than 5), and small endgames are solved exactly. Everything runs in your browser.</p>
+    <p>Warbler filters the answer list by every color you report, shortlists guesses by letter and position frequency (favoring letters that split the pool, avoiding repeats early), then ranks the shortlist by expected guesses remaining (using how evenly each guess splits the pool), so the lowest expected number of guesses to finish wins, which favors guesses that could be the answer when it is close. The opening moves come from an exhaustive search over every possible answer, and small endgames are solved exactly. "Any valid word" treats all 12,972 legal guesses as possible answers, for when the real answer falls outside the classic list. Everything runs in your browser.</p>
   </details>
   <footer><p>No data leaves your device.</p></footer>
 </main>
@@ -146,7 +154,7 @@ footer{color:var(--muted);font-size:13px;text-align:center}
     if (!ready) return;
     const id = ++reqId;
     $("pending").textContent = "thinking…";
-    worker.postMessage({ id, history: history(), hard: $("hard").checked });
+    worker.postMessage({ id, history: history(), hard: $("hard").checked, mode: $("mode").value });
   }
 
   worker.onmessage = (e) => {
@@ -224,6 +232,8 @@ footer{color:var(--muted);font-size:13px;text-align:center}
   document.addEventListener("keydown", (e) => { if (e.key === "Enter" && pending) submit(); });
   $("undo").onclick = () => { if (pending) pending = null; else rows.pop(); say(""); render(); ask(); };
   $("hard").onchange = ask;
+  try { const m = localStorage.getItem("warbler-mode"); if (m === "all" || m === "classic") $("mode").value = m; } catch (e) {}
+  $("mode").onchange = () => { try { localStorage.setItem("warbler-mode", $("mode").value); } catch (e) {} ask(); };
 
   render();
   if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});

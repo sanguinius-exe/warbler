@@ -1,4 +1,5 @@
-// node scripts/build_tree.js [--hard] [--openers salet,crate,...]
+// node scripts/build_tree.js [--hard] [--expanded] [--openers salet,crate,...]
+// --expanded treats every legal guess (not just the classic 2,315 answers) as a possible answer.
 // Searches for the opener + reply strategy that minimizes average guesses and writes
 // web/tree.json (or web/tree-hard.json): a complete decision tree over every possible answer.
 const fs = require("fs");
@@ -8,15 +9,20 @@ const { feedback } = require("../web/solver.js");
 
 const root = path.join(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(root, "data", f), "utf8").split(/\s+/).filter((w) => w.length === 5);
-const answers = [...new Set(read("answers.txt"))].sort();
-const guesses = [...new Set([...answers, ...read("allowed.txt")])].sort();
+const classic = [...new Set(read("answers.txt"))].sort();
+const guesses = [...new Set([...classic, ...read("allowed.txt")])].sort();
+const expanded = process.argv.includes("--expanded");
+const answers = expanded ? guesses : classic;
 const hard = process.argv.includes("--hard");
 const oi = process.argv.indexOf("--openers");
-const openers = (oi > 0 ? process.argv[oi + 1].split(",") : ["salet", "reast", "crate", "trace", "slate", "crane", "soare", "roate", "raise", "arise", "stare", "least", "slane", "trape"]).filter((w) => guesses.includes(w));
+const defaults = expanded
+  ? ["tares", "lares", "rales", "rates", "salet", "reast", "soare", "arose", "raise", "tales", "serai", "aesir", "crane", "slate", "trace"]
+  : ["salet", "reast", "crate", "trace", "slate", "crane", "soare", "roate", "raise", "arise", "stare", "least", "slane", "trape"];
+const openers = (oi > 0 ? process.argv[oi + 1].split(",") : defaults).filter((w) => guesses.includes(w));
 
 const t0 = Date.now();
 const log = (...a) => console.error(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
-log(`building ${hard ? "hard" : "normal"}-mode feedback table (${guesses.length} x ${answers.length})`);
+log(`building ${expanded ? "expanded " : ""}${hard ? "hard" : "normal"}-mode feedback table (${guesses.length} x ${answers.length})`);
 const S = new Search(answers, guesses, { hard });
 const pool = S.allPool();
 
@@ -47,6 +53,6 @@ for (const a of answers) {
   dist[n] = (dist[n] || 0) + 1;
   sum += n;
 }
-const out = path.join(root, "web", hard ? "tree-hard.json" : "tree.json");
+const out = path.join(root, "web", `tree${expanded ? "-all" : ""}${hard ? "-hard" : ""}.json`);
 fs.writeFileSync(out, JSON.stringify({ opener: best.o, avg: +(sum / answers.length).toFixed(4), dist, tree }));
 log(`verified avg ${(sum / answers.length).toFixed(4)}`, JSON.stringify(dist), `-> ${path.relative(root, out)} (${(fs.statSync(out).size / 1024).toFixed(0)} KB)`);

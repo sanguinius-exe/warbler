@@ -9,8 +9,15 @@ from .solver import Solver
 from .words import load_words
 
 
-def cmd_play(args):
+def load(args):
     answers, guesses, source = load_words()
+    if getattr(args, "expanded", False):
+        answers = guesses  # any legal word may be the answer
+    return answers, guesses, source
+
+
+def cmd_play(args):
+    answers, guesses, source = load(args)
     solver = Solver(answers, guesses, hard=args.hard)
     print(f"warbler | {len(answers)} answers | words: {source}")
     print("Enter what you played and Wordle's colors, e.g. `crane bygbb` (g=green y=yellow b=gray).")
@@ -47,7 +54,7 @@ def cmd_play(args):
 
 
 def cmd_solve(args):
-    answers, guesses, _ = load_words()
+    answers, guesses, _ = load(args)
     solver = Solver(answers, guesses, hard=args.hard)
     history = []
     for item in args.turns:
@@ -59,7 +66,7 @@ def cmd_solve(args):
 
 
 def cmd_simulate(args):
-    answers, guesses, source = load_words()
+    answers, guesses, source = load(args)
     solver = Solver(answers, guesses, hard=args.hard)
     targets = answers[:: max(1, len(answers) // args.limit)] if args.limit else answers
     print(f"simulating {len(targets)} answers | words: {source}")
@@ -90,6 +97,7 @@ def main():
                             ("simulate", cmd_simulate, "benchmark against the answer list")]:
         sp = sub.add_parser(name, help=help_)
         sp.add_argument("--hard", action="store_true", help="hard mode: reuse all revealed hints")
+        sp.add_argument("--expanded", action="store_true", help="any legal word may be the answer")
         if name == "solve":
             sp.add_argument("turns", nargs="*")
         if name == "simulate":
